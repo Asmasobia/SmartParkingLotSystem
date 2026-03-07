@@ -1,0 +1,21 @@
+{
+    "name": "smart-parking",
+    "version": "1.0.0",
+    "description": "Smart Parking Lot Management System",
+    "main": "dist/index.js",
+    "scripts": {
+      "build": "tsc",
+      "start": "tsc && node dist/index.js",
+      "dev": "ts-node src/index.ts"
+    },
+    "dependencies": {
+      "async-mutex": "^0.4.0",
+      "uuid": "^9.0.0"
+    },
+    "devDependencies": {
+      "@types/node": "^20.0.0",
+      "@types/uuid": "^9.0.0",
+      "ts-node": "^10.9.0",
+      "typescript": "^5.3.0"
+    }
+  }
