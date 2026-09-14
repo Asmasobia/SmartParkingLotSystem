@@ -66,6 +66,61 @@ export class ParkingSpot {
     });
   }
 
+  /**
+   * Atomically withdraw this spot from service (maintenance, damage, reserved).
+   *
+   * Refuses if the spot is not currently AVAILABLE. That refusal is the whole
+   * point of the method: an OCCUPIED spot has a real car in it, and flipping it to
+   * OUT_OF_SERVICE would strand that car — its ticket still names this spot, but
+   * `release()` only accepts OCCUPIED, so checking out would log a warning and
+   * leave the spot permanently unusable. Maintenance has to wait for the driver to
+   * leave, exactly as it would in a real car park where you cannot cone off a bay
+   * that is already full.
+   *
+   * Goes through the same per-spot mutex as `assignVehicle`, and that matters more
+   * than it looks: without it, an allocation in flight could park a car between the
+   * status check and the write, producing precisely the check-then-act-across-an-
+   * await bug this project already fixed twice. The mutex is what makes "available"
+   * still true at the moment it is acted on.
+   *
+   * @returns true if the spot was taken out of service, false if it was occupied or
+   *          already out of service.
+   */
+  async takeOutOfService(): Promise<boolean> {
+    return this.mutex.runExclusive(() => {
+      if (this.status !== SpotStatus.AVAILABLE) {
+        return false;
+      }
+      this.status = SpotStatus.OUT_OF_SERVICE;
+      return true;
+    });
+  }
+
+  /**
+   * Atomically return a withdrawn spot to service.
+   *
+   * Only OUT_OF_SERVICE → AVAILABLE is permitted. Refusing every other starting
+   * state is what stops this becoming a way to free an occupied bay: if it accepted
+   * OCCUPIED it would be `release()` without a ticket, and the fee would never be
+   * charged.
+   *
+   * @returns true if the spot was returned to service, false if it was not out of
+   *          service to begin with.
+   */
+  async returnToService(): Promise<boolean> {
+    return this.mutex.runExclusive(() => {
+      if (this.status !== SpotStatus.OUT_OF_SERVICE) {
+        return false;
+      }
+      this.status = SpotStatus.AVAILABLE;
+      // Defensive: a spot should already have no vehicle while out of service, but
+      // clearing it here means a stale reference can never outlive the outage and
+      // reappear as a phantom parked car.
+      this.vehicle = null;
+      return true;
+    });
+  }
+
   toString(): string {
     return `ParkingSpot(${this.spotId}, floor=${this.floor}, size=${this.size}, status=${this.status})`;
   }
