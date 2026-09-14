@@ -1,0 +1,29 @@
+// TypeScript configuration for the test suite.
+//
+// WHY A SECOND CONFIG: the main tsconfig.json sets `"rootDir": "./src"` and
+// `"include": ["src/**/*"]`, which is correct for the build — `dist/` should
+// mirror `src/`, not contain a stray `tests/` folder. But it means any file
+// outside `src/` is "not under rootDir", which ts-jest reports as TS6059 while
+// compiling the test files.
+//
+// So the tests get their own config that extends the real one and only widens the
+// file scope. Everything that actually governs type checking — `strict`, the
+// target, `esModuleInterop` — is inherited rather than restated, so the tests are
+// checked under exactly the same rules as the code they test. A test suite
+// compiled with looser settings than the source is a test suite that can pass on
+// types the build would reject.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Dropped, not overridden: with tests outside src/ there is no single root.
+    // ts-jest compiles in memory and emits nothing, so no output layout to define.
+    "rootDir": ".",
+    "noEmit": true,
+
+    // Jest's globals (describe/it/expect) come from @types/jest. Listing types
+    // explicitly means a missing @types package fails loudly at compile time
+    // instead of silently resolving to `any`.
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
