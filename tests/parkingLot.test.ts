@@ -210,9 +210,21 @@ describe("check-in and check-out lifecycle", () => {
   it("marks the ticket paid and records the fee on exit", async () => {
     const lot = buildLot();
     const ticket = await lot.checkIn(new Vehicle("PAY-1", VehicleType.CAR));
-    // Backdate entry so the stay is a real three hours; see billing.test.ts for why
-    // this is a safe way to test a duration.
-    ticket!.entryTime = new Date(Date.now() - 3 * MS_PER_HOUR);
+    // Backdate entry into the MIDDLE of the third billing hour, not onto its boundary.
+    //
+    // The obvious version of this line is `Date.now() - 3 * MS_PER_HOUR`, and it is
+    // intermittently wrong. `checkOut` stamps `exitTime` with its own `new Date()`, so the
+    // measured stay is three hours PLUS however long the runtime spent between these two
+    // statements. `FeeCalculator` ceilings the duration, so 3.0000001 h bills as four
+    // hours and the fee becomes $8. On an idle machine the gap rounds to zero and the test
+    // passes; under `--coverage`, or on a box with something else running, it does not.
+    // That is the failure mode billing.test.ts already warns about: a test that demands an
+    // exact figure from a live clock is a test that fails on a slow machine.
+    //
+    // 2.5 h sits squarely inside the (2, 3] bucket, so `Math.ceil` returns 3 no matter how
+    // slowly the test runs -- it would take thirty minutes of drift to change the answer.
+    // The assertion below is unchanged in meaning: a stay in the third hour bills three.
+    ticket!.entryTime = new Date(Date.now() - 2.5 * MS_PER_HOUR);
 
     const fee = await lot.checkOut(ticket!.ticketId);
 
